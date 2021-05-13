@@ -283,8 +283,8 @@ def train(net, data_loader, train_optimizer, epoch, args):
     adjust_learning_rate(train_optimizer, epoch, args)
     data_loader.sampler.set_epoch(epoch)
 
-    total_loss, total_num, train_bar = 0.0, 0, tqdm(data_loader)
-    for im_1, im_2, img_n in train_bar:
+    total_loss, total_num = 0.0, 0
+    for im_1, im_2, img_n in data_loader:
         im_1, im_2, img_n = im_1.cuda(non_blocking=True), im_2.cuda(non_blocking=True), img_n.cuda(non_blocking=True)
         loss = net(im_1, im_2, img_n)
 
@@ -294,10 +294,6 @@ def train(net, data_loader, train_optimizer, epoch, args):
 
         total_num += data_loader.batch_size
         total_loss += loss.item() * data_loader.batch_size
-        train_bar.set_description(
-            'Train Epoch: [{}/{}], lr: {:.6f}, Loss: {:.4f}'.format(epoch, args.epochs,
-                                                                    train_optimizer.param_groups[0]['lr'],
-                                                                    total_loss / total_num))
 
     return total_loss / total_num
 
@@ -328,7 +324,7 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
     total_top1, total_top5, total_num, feature_bank = 0.0, 0.0, 0, []
     with torch.no_grad():
         # generate feature bank
-        for data, target in tqdm(memory_data_loader, desc='Feature extracting'):
+        for data, target in memory_data_loader:
             feature = net(data.cuda(non_blocking=True))
             feature = F.normalize(feature, dim=1)
             feature_bank.append(feature)
@@ -349,8 +345,6 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
             pred_labels = knn_predict(feature, feature_bank, feature_labels, classes, args.knn_k, args.knn_t)
             total_num += data.size(0)
             total_top1 += (pred_labels.argmax(dim=1, keepdim=True) == target).float().sum().item()
-            test_bar.set_description(
-                'Test Epoch: [{}/{}] Acc@1:{:.2f}%'.format(epoch, args.epochs, total_top1 / total_num * 100))
 
     return total_top1 / len(test_data_loader.dataset) * 100
 
@@ -504,6 +498,7 @@ if __name__ == '__main__':
 
     torch.manual_seed(1234)
     np.random.seed(1234)
+
     train_dir = 'camelyonpatch_level_2_split_train_x.h5'
     train_meta = 'camelyonpatch_level_2_split_train_meta.csv'
     test_dir = 'camelyonpatch_level_2_split_valid_x.h5'

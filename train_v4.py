@@ -55,6 +55,7 @@ class BasicDataset(Dataset):
     def __len__(self):
         return self.length
 
+
 class Subset(Dataset):
     """
     Subset of the Pathology dataset at specified indices.
@@ -73,7 +74,6 @@ class Subset(Dataset):
 
     def __len__(self):
         return len(self.indices)
-
 
 
 class SplitBatchNorm(nn.BatchNorm2d):
@@ -109,6 +109,7 @@ class ModelBase(nn.Module):
     (i) replaces conv1 with kernel=3, str=1
     (ii) removes pool1
     """
+
     def __init__(self, feature_dim=128, arch=None, bn_splits=16, mlp=True):
         super(ModelBase, self).__init__()
 
@@ -131,7 +132,7 @@ class ModelBase(nn.Module):
                         nn.Linear(dim_mlp, 512),
                         nn.BatchNorm1d(512),
                         nn.ReLU(inplace=True))
-                        )
+                    )
 
             self.net.append(module)
 
@@ -207,7 +208,7 @@ class ModelMoCo(nn.Module):
         return x[idx_unshuffle]
 
     def contrastive_loss(self, im_q, img_k):
-        if isinstance(img_k, tuple):
+        if isinstance(img_k, list):
             img_p, img_n = img_k
         else:
             raise ValueError('key images must include both positive and negative pair')
@@ -294,7 +295,8 @@ def train(net, data_loader, train_optimizer, epoch, args):
         total_num += data_loader.batch_size
         total_loss += loss.item() * data_loader.batch_size
         train_bar.set_description(
-            'Train Epoch: [{}/{}], lr: {:.6f}, Loss: {:.4f}'.format(epoch, args.epochs, train_optimizer.param_groups[0]['lr'],
+            'Train Epoch: [{}/{}], lr: {:.6f}, Loss: {:.4f}'.format(epoch, args.epochs,
+                                                                    train_optimizer.param_groups[0]['lr'],
                                                                     total_loss / total_num))
 
     return total_loss / total_num
@@ -306,7 +308,8 @@ def adjust_learning_rate(optimizer, epoch, args):
     lr = args.lr
     if args.cos:  # cosine lr schedule
         if args.warmup_epochs:
-            lr *= epoch / args.warmup_epochs if epoch < args.warmup_epochs else 0.5 * (1. + math.cos(math.pi * epoch / args.epochs))
+            lr *= epoch / args.warmup_epochs if epoch < args.warmup_epochs else 0.5 * (
+                        1. + math.cos(math.pi * epoch / args.epochs))
         else:
             lr *= 0.5 * (1. + math.cos(math.pi * epoch / args.epochs))
     else:  # stepwise lr schedule
@@ -332,7 +335,9 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
         # [D, N]
         feature_bank = torch.cat(feature_bank, dim=0).t().contiguous()
         # [N]
-        feature_labels = torch.tensor(memory_data_loader.dataset.dataset.targets[memory_data_loader.dataset.indices].squeeze(), device=feature_bank.device)
+        feature_labels = torch.tensor(
+            memory_data_loader.dataset.dataset.targets[memory_data_loader.dataset.indices].squeeze(),
+            device=feature_bank.device)
         # loop test data to predict the label by weighted knn search
         test_bar = tqdm(test_data_loader)
         for data, target in test_bar:
@@ -344,7 +349,8 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
             pred_labels = knn_predict(feature, feature_bank, feature_labels, classes, args.knn_k, args.knn_t)
             total_num += data.size(0)
             total_top1 += (pred_labels.argmax(dim=1, keepdim=True) == target).float().sum().item()
-            test_bar.set_description('Test Epoch: [{}/{}] Acc@1:{:.2f}%'.format(epoch, args.epochs, total_top1 / total_num * 100))
+            test_bar.set_description(
+                'Test Epoch: [{}/{}] Acc@1:{:.2f}%'.format(epoch, args.epochs, total_top1 / total_num * 100))
 
     return total_top1 / len(test_data_loader.dataset) * 100
 
@@ -370,14 +376,13 @@ def knn_predict(feature, feature_bank, feature_labels, classes, knn_k, knn_t):
     return pred_labels
 
 
-
 def linear_finetune(num_epo, net, data_loader, train_optimizer, train=True, linear_temperature=0.1):
     is_train = train
     net.train() if is_train else net.eval()
     net = net.to(device)
     loss_criterion = nn.CrossEntropyLoss()
     total_loss, total_correct_1, total_correct_5, total_num = 0.0, 0.0, 0.0, 0
-    for i in range(1, num_epo+1):
+    for i in range(1, num_epo + 1):
         with (torch.enable_grad() if is_train else torch.no_grad()):
             for sample in data_loader:
                 img, target = sample
@@ -396,11 +401,12 @@ def linear_finetune(num_epo, net, data_loader, train_optimizer, train=True, line
                 total_loss += loss.item() * data_loader.batch_size
                 prediction = torch.argsort(prd_logits, dim=-1, descending=True)
                 total_correct_1 += torch.sum((prd_logits.argmax(dim=1) == target).float()).item()
-                total_correct_5 += torch.sum((prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
+                total_correct_5 += torch.sum(
+                    (prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
 
             print('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% ACC@5: {:.2f}%'
-                                     .format('Train' if is_train else 'Test', i, num_epo, total_loss / total_num,
-                                             total_correct_1 / total_num * 100, total_correct_5 / total_num * 100))
+                  .format('Train' if is_train else 'Test', i, num_epo, total_loss / total_num,
+                          total_correct_1 / total_num * 100, total_correct_5 / total_num * 100))
 
     return total_loss / total_num, total_correct_1 / total_num * 100, total_correct_5 / total_num * 100
 
@@ -411,7 +417,7 @@ class ClassificationNetwork(nn.Module):
         self.network = in_model
         self.network.eval()
         test_input = torch.randn(1, 3, 32, 32).to(device)
-        test_out = self.network(test_input).view(1, -1)     # flatten
+        test_out = self.network(test_input).view(1, -1)  # flatten
         print('linear head dim', test_out.shape[-1])
         self.classification_head = nn.Linear(test_out.shape[-1], outdim)
         self.linear_protocol = linear_protocol
@@ -431,6 +437,7 @@ class ClassificationNetwork(nn.Module):
 class LabelSmoothingCrossEntropy(nn.Module):
     def __init__(self):
         super(LabelSmoothingCrossEntropy, self).__init__()
+
     def forward(self, x, target, smoothing=0.1):
         confidence = 1. - smoothing
         logprobs = F.log_softmax(x, dim=-1)
@@ -439,17 +446,18 @@ class LabelSmoothingCrossEntropy(nn.Module):
         smooth_loss = -logprobs.mean(dim=-1)
         loss = confidence * nll_loss + smoothing * smooth_loss
         return loss.mean()
-    
 
-def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=True, linear_temperature=0.1, logging=None):
+
+def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=True, linear_temperature=0.1,
+                    logging=None):
     is_train = train
     net.eval()
     net = net.to(device)
     loss_criterion = nn.CrossEntropyLoss()
 
     total_loss, total_correct_1, total_correct_5, total_num = 0.0, 0.0, 0.0, 0
-    results = {'avg_loss':[], 'acc1':[], 'acc5':[]}
-    for i in range(1, num_epochs+1):
+    results = {'avg_loss': [], 'acc1': [], 'acc5': []}
+    for i in range(1, num_epochs + 1):
         if is_train:
             adjust_learning_rate(train_optimizer, i, args)
         with (torch.enable_grad() if is_train else torch.no_grad()):
@@ -471,14 +479,15 @@ def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=T
                 total_loss += loss.item() * data_loader.batch_size
                 prediction = torch.argsort(prd_logits, dim=-1, descending=True)
                 total_correct_1 += torch.sum((prd_logits.argmax(dim=1) == target).float()).item()
-                total_correct_5 += torch.sum((prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
+                total_correct_5 += torch.sum(
+                    (prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
 
-            avg_loss =  total_loss / total_num
+            avg_loss = total_loss / total_num
             acc1 = total_correct_1 / total_num * 100
             acc5 = total_correct_5 / total_num * 100
             print('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% ACC@5: {:.2f}%'
-                                     .format('Train' if is_train else 'Test', i, num_epochs, avg_loss,
-                                             acc1, acc5))
+                  .format('Train' if is_train else 'Test', i, num_epochs, avg_loss,
+                          acc1, acc5))
             results['avg_loss'].append(avg_loss)
             results['acc1'].append(acc1)
             results['acc5'].append(acc5)
@@ -495,11 +504,10 @@ if __name__ == '__main__':
 
     torch.manual_seed(1234)
     np.random.seed(1234)
-    train_dir = './data/dev/camelyonpatch_level_2_split_train_x.h5'
-    train_meta = './data/dev/camelyonpatch_level_2_split_train_meta.csv'
-    test_dir = './data/test/camelyonpatch_level_2_split_test_x.h5.gz'
-    test_meta = './data/test/camelyonpatch_level_2_split_test_meta.csv'
-
+    train_dir = './data/camelyonpatch_level_2_split_train_x.h5'
+    train_meta = './data/camelyonpatch_level_2_split_train_meta.csv'
+    test_dir = './data/camelyonpatch_level_2_split_test_x.h5'
+    test_meta = './data/camelyonpatch_level_2_split_test_meta.csv'
 
     parser = argparse.ArgumentParser(description='Train MoCo on CIFAR-10')
 
@@ -507,12 +515,12 @@ if __name__ == '__main__':
 
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
-    parser.add_argument('--epochs', default=200, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[140, 160, 180], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--epochs', default=500, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--schedule', default=[150, 300, 400], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=500, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=1000, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
@@ -536,10 +544,10 @@ if __name__ == '__main__':
                         help='softmax temperature in kNN monitor; could be different with moco-t')
 
     # utils
-    #TODO Change path
+    # TODO Change path
     parser.add_argument('--resume', default='', type=str,
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--results-dir', default='./results/', type=str,
+    parser.add_argument('--results-dir', default='./results_v4/', type=str,
                         help='path to cache (default: none)')
 
     args = parser.parse_args()  # running in command line
@@ -616,15 +624,18 @@ if __name__ == '__main__':
 
     train_dst = BasicDataset(train_h5, train_labels, transform=[train_transform, negative_transform], train=True)
     train_sampler = DistributedSampler(train_dst)
-    train_loader = DataLoader(train_dst, batch_size=args.batch_size, sampler=train_sampler, shuffle=(train_sampler is None), num_workers=8, pin_memory=True)
+    train_loader = DataLoader(train_dst, batch_size=args.batch_size, sampler=train_sampler,
+                              shuffle=(train_sampler is None), num_workers=8, pin_memory=True, drop_last=True)
 
     valid_dst = BasicDataset(train_h5, train_labels, transform=test_transform, train=False)
     valid_sampler = DistributedSampler(train_dst)
-    valid_loader = DataLoader(valid_dst, batch_size=args.batch_size, sampler=valid_sampler, shuffle=False, num_workers=8, pin_memory=True)
+    valid_loader = DataLoader(valid_dst, batch_size=args.batch_size, sampler=valid_sampler, shuffle=False,
+                              num_workers=8, pin_memory=True, drop_last=True)
 
     test_dst = BasicDataset(test_h5, test_labels, test_transform, train=False)
     # test_dst = Subset(test_dst, range(len(test_dst)))
-    test_loader = DataLoader(test_dst, batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True)
+    test_loader = DataLoader(test_dst, batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True,
+                             drop_last=True)
 
     model = ModelMoCo(
         dim=args.moco_dim,
@@ -675,12 +686,11 @@ if __name__ == '__main__':
 
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(epoch_start, epoch + 1))
-        data_frame.to_csv(args.results_dir + '/log_moco_path.csv', index_label='epoch')
+        data_frame.to_csv(args.results_dir + '/log_moco_path_v4.csv', index_label='epoch')
 
         # save model
         torch.save({'epoch': epoch, 'state_dict': model.state_dict(), 'optimizer': optimizer.state_dict(), },
-               args.results_dir + '/triplet_path.pth')
-
+                   args.results_dir + '/triplet_path_v4.pth')
 
     print('-------------- Start Finetuning for 100 epochs (linear evaluation protocol) --------')
     linear_eva_model = ClassificationNetwork(model.encoder_k.net[:8], outdim=2)
@@ -688,7 +698,8 @@ if __name__ == '__main__':
 
     eva_optimizer = torch.optim.SGD(linear_eva_model.parameters(), lr=0.1, momentum=0.9)
 
-    loss, top1_acc, top5_acc = linear_finetune(100, linear_eva_model, valid_loader, eva_optimizer, args, train=True, logging='linear_eva')
+    loss, top1_acc, top5_acc = linear_finetune(100, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
+                                               logging='linear_eva')
     test_loss, test_top1_acc, test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False)
 
     print('-------------- Start Finetuning for 100 epochs (finetune everything) --------')
@@ -698,4 +709,5 @@ if __name__ == '__main__':
     finetune_optimizer = torch.optim.SGD(linear_eva_model.parameters(), lr=0.1, momentum=0.9)
 
     _, _, _ = linear_finetune(100, linear_eva_model, valid_loader, finetune_optimizer, args, train=True)
-    f_test_loss, f_test_top1_acc, f_test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False, logging='finetune')
+    f_test_loss, f_test_top1_acc, f_test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False,
+                                                                    logging='finetune')

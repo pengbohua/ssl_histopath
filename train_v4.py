@@ -520,7 +520,7 @@ if __name__ == '__main__':
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=1000, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=800, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')

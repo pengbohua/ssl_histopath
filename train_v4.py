@@ -504,30 +504,30 @@ if __name__ == '__main__':
 
     torch.manual_seed(1234)
     np.random.seed(1234)
-    train_dir = './data/camelyonpatch_level_2_split_train_x.h5'
-    train_meta = './data/camelyonpatch_level_2_split_train_meta.csv'
-    test_dir = './data/camelyonpatch_level_2_split_test_x.h5'
-    test_meta = './data/camelyonpatch_level_2_split_test_meta.csv'
+    train_dir = 'camelyonpatch_level_2_split_train_x.h5'
+    train_meta = 'camelyonpatch_level_2_split_train_meta.csv'
+    test_dir = 'camelyonpatch_level_2_split_valid_x.h5'
+    test_meta = 'camelyonpatch_level_2_split_valid_meta.csv'
 
     parser = argparse.ArgumentParser(description='Train MoCo on CIFAR-10')
 
-    parser.add_argument('-a', '--arch', default='resnet18')
+    parser.add_argument('-a', '--arch', default='resnet50')
 
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
-    parser.add_argument('--epochs', default=500, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[150, 300, 400], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--schedule', default=[120, 180, 250], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=800, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=1600, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
 
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
-    parser.add_argument('--moco_k', default=10000, type=int, help='queue size; number of negative keys')
+    parser.add_argument('--moco_k', default=16000, type=int, help='queue size; number of negative keys')
     parser.add_argument('--moco_m', default=0.99, type=float, help='moco momentum of updating key encoder')
     parser.add_argument('--moco_t', default=0.07, type=float, help='softmax temperature')
     parser.add_argument('--aug_plus', default=True, type=bool, help='MoCo v2 aug_plus')

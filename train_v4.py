@@ -506,8 +506,8 @@ if __name__ == '__main__':
     np.random.seed(1234)
     train_dir = './data/camelyonpatch_level_2_split_train_x.h5'
     train_meta = './data/camelyonpatch_level_2_split_train_meta.csv'
-    test_dir = './data/camelyonpatch_level_2_split_test_x.h5'
-    test_meta = './data/camelyonpatch_level_2_split_test_meta.csv'
+    test_dir = './data/camelyonpatch_level_2_split_valid_x.h5'
+    test_meta = './data/camelyonpatch_level_2_split_valid_meta.csv'
 
     parser = argparse.ArgumentParser(description='Train MoCo on CIFAR-10')
 

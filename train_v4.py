@@ -558,8 +558,7 @@ if __name__ == '__main__':
     local_size = torch.cuda.device_count()
 
     if args.aug_plus:
-        train_transform = transforms.Compose([
-            transforms.ToPILImage(),
+        train_transform = nn.Sequential(
             transforms.CenterCrop((32, 32)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
@@ -569,12 +568,10 @@ if __name__ == '__main__':
             ], p=0.5),
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
-            transforms.ToTensor(),
-            transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
+            transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
         )
     else:
-        train_transform = transforms.Compose([
-            transforms.ToPILImage(),
+        train_transform = nn.Sequential(
             transforms.CenterCrop((32, 32)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
@@ -584,12 +581,10 @@ if __name__ == '__main__':
             ], p=0.5),
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
-            transforms.ToTensor(),
-            transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
+            transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
         )
 
-    negative_transform = transforms.Compose([
-        transforms.ToPILImage(),
+    negative_transform = nn.Sequential(
         transforms.CenterCrop((32, 32)),
         transforms.RandomResizedCrop((32, 32), scale=(1.2, 2), ratio=(1, 1)),
         transforms.RandomHorizontalFlip(p=0.5),
@@ -600,13 +595,12 @@ if __name__ == '__main__':
         ], p=0.5),
         # transforms.RandomGrayscale(p=0.2),
         # transforms.RandomApply([GaussianBlur([.1, 2.])]),
-        transforms.ToTensor(),
-        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
+        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
     )
 
-    test_transform = transforms.Compose([
+    test_transform = nn.Sequential(
         transforms.CenterCrop((32, 32)),
-        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
+        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
     )
 
     train_h5 = h5py.File(train_dir, 'r')
@@ -654,7 +648,7 @@ if __name__ == '__main__':
 
     # load model if resume
     epoch_start = 1
-    if args.resume is not '':
+    if args.resume != '':
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])

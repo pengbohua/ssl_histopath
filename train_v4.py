@@ -36,7 +36,7 @@ class BasicDataset(Dataset):
 
     def __getitem__(self, item):
 
-        x = torch.from_numpy(self.x[item].astype(float))
+        x = torch.from_numpy(self.x[item]).float()
         y = self.y[item]
         x = x.permute(2, 0, 1)  # C H W
 
@@ -54,7 +54,6 @@ class BasicDataset(Dataset):
 
     def __len__(self):
         return self.length
-
 
 class Subset(Dataset):
     """
@@ -129,9 +128,10 @@ class ModelBase(nn.Module):
                 if mlp:
                     dim_mlp = module.weight.shape[-1]
                     self.net.append(nn.Sequential(
-                        nn.Linear(dim_mlp, 512),
-                        nn.BatchNorm1d(512),
-                        nn.ReLU(inplace=True))
+                        nn.Linear(dim_mlp, feature_dim),
+                        nn.BatchNorm1d(feature_dim),
+                        nn.ReLU(inplace=True),
+                        nn.Linear(feature_dim, feature_dim))
                     )
 
             self.net.append(module)
@@ -144,7 +144,7 @@ class ModelBase(nn.Module):
 
 
 class ModelMoCo(nn.Module):
-    def __init__(self, dim=128, K=4096, m=0.99, T=0.1, arch='resnet18', bn_splits=8, symmetric=True, mlp=False):
+    def __init__(self, dim=128, K=18000, m=0.99, T=0.1, arch='resnet18', bn_splits=8, symmetric=True, mlp=False):
         super(ModelMoCo, self).__init__()
 
         self.K = K
@@ -241,7 +241,7 @@ class ModelMoCo(nn.Module):
         logits = torch.cat([l_pos, l_neg_1, l_neg_2], dim=1)
 
         # apply temperature
-        logits /= self.T
+        # logits /= self.T
 
         # labels: positive key indicators
         labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
@@ -329,7 +329,7 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
             feature = F.normalize(feature, dim=1)
             feature_bank.append(feature)
         # [D, N]
-        feature_bank = torch.cat(feature_bank, dim=0).t().contiguous()
+        feature_bank = torch.cat(feature_bank, dim=0).squeeze().t().contiguous()
         # [N]
         feature_labels = torch.tensor(
             memory_data_loader.dataset.dataset.targets[memory_data_loader.dataset.indices].squeeze(),
@@ -346,7 +346,7 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
             total_num += data.size(0)
             total_top1 += (pred_labels.argmax(dim=1, keepdim=True) == target).float().sum().item()
 
-    return total_top1 / len(test_data_loader.dataset) * 100
+    return total_top1 / total_num * 100
 
 
 def knn_predict(feature, feature_bank, feature_labels, classes, knn_k, knn_t):
@@ -442,12 +442,11 @@ class LabelSmoothingCrossEntropy(nn.Module):
         return loss.mean()
 
 
-def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=True, linear_temperature=0.1,
-                    logging=None):
+def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=True, linear_temperature=0.1, logging=None):
     is_train = train
     net.eval()
     net = net.to(device)
-    loss_criterion = nn.CrossEntropyLoss()
+    loss_criterion = LabelSmoothingCrossEntropy()
 
     total_loss, total_correct_1, total_correct_5, total_num = 0.0, 0.0, 0.0, 0
     results = {'avg_loss': [], 'acc1': [], 'acc5': []}
@@ -473,8 +472,7 @@ def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=T
                 total_loss += loss.item() * data_loader.batch_size
                 prediction = torch.argsort(prd_logits, dim=-1, descending=True)
                 total_correct_1 += torch.sum((prd_logits.argmax(dim=1) == target).float()).item()
-                total_correct_5 += torch.sum(
-                    (prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
+                total_correct_5 += torch.sum((prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
 
             avg_loss = total_loss / total_num
             acc1 = total_correct_1 / total_num * 100
@@ -511,18 +509,18 @@ if __name__ == '__main__':
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
     parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[120, 180, 250], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--schedule', default=[180, 260], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=1600, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=800, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
 
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
-    parser.add_argument('--moco_k', default=16000, type=int, help='queue size; number of negative keys')
+    parser.add_argument('--moco_k', default=8000, type=int, help='queue size; number of negative keys')
     parser.add_argument('--moco_m', default=0.99, type=float, help='moco momentum of updating key encoder')
     parser.add_argument('--moco_t', default=0.07, type=float, help='softmax temperature')
     parser.add_argument('--aug_plus', default=True, type=bool, help='MoCo v2 aug_plus')
@@ -534,6 +532,7 @@ if __name__ == '__main__':
     parser.add_argument('--mlp', default=True, help='mlp head')
 
     # knn monitor
+    parser.add_argument('--mem_bank_size', default=90000, type=int, help='size for feature memory bank')
     parser.add_argument('--knn_k', default=255, type=int, help='k in kNN monitor')
     parser.add_argument('--knn_t', default=0.1, type=float,
                         help='softmax temperature in kNN monitor; could be different with moco-t')
@@ -603,9 +602,10 @@ if __name__ == '__main__':
         transforms.ToTensor(),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
     )
-
     test_transform = transforms.Compose([
+        transforms.ToPILImage(),
         transforms.CenterCrop((32, 32)),
+        transforms.ToTensor(),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))]
     )
 
@@ -623,12 +623,12 @@ if __name__ == '__main__':
                               shuffle=(train_sampler is None), num_workers=8, pin_memory=True, drop_last=True)
 
     valid_dst = BasicDataset(train_h5, train_labels, transform=test_transform, train=False)
-    valid_sampler = DistributedSampler(train_dst)
+    valid_dst = Subset(valid_dst, range(len(valid_dst)))
     valid_loader = DataLoader(valid_dst, batch_size=args.batch_size, sampler=valid_sampler, shuffle=False,
                               num_workers=8, pin_memory=True, drop_last=True)
 
     test_dst = BasicDataset(test_h5, test_labels, test_transform, train=False)
-    # test_dst = Subset(test_dst, range(len(test_dst)))
+    test_dst = Subset(test_dst, range(len(test_dst)))
     test_loader = DataLoader(test_dst, batch_size=args.batch_size, shuffle=False, num_workers=8, pin_memory=True,
                              drop_last=True)
 
@@ -654,7 +654,7 @@ if __name__ == '__main__':
 
     # load model if resume
     epoch_start = 1
-    if args.resume is not '':
+    if args.resume != '':
         checkpoint = torch.load(args.resume)
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
@@ -674,10 +674,11 @@ if __name__ == '__main__':
         train_loss = train(model, train_loader, optimizer, epoch, args)
         results['train_loss'].append(train_loss)
         if epoch % 5 == 0:
-            test_acc_1 = test(model.module.encoder_q, valid_loader, test_loader, epoch, args)
+            feature_extractor = nn.Sequential(*model.module.encoder_q.net[:8])
+            test_acc_1 = test(feature_extractor, valid_loader, test_loader, epoch, args)
             results['test_acc@1'].append(test_acc_1)
         else:
-            results['test_acc@1'].append('')
+            results['test_acc@1'].append(0)
 
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(epoch_start, epoch + 1))

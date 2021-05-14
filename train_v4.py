@@ -26,7 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class BasicDataset(Dataset):
     def __init__(self, img_file, labels, transform=None, train=True):
         super(BasicDataset, self).__init__()
-        self.x = img_file['x'][:].float()
+        self.x = img_file['x'][:]
         self.y = torch.from_numpy(labels).long()
         self.length = self.y.shape[0]
         self.transform = transform
@@ -36,7 +36,7 @@ class BasicDataset(Dataset):
 
     def __getitem__(self, item):
 
-        x = torch.from_numpy(self.x[item])
+        x = torch.from_numpy(self.x[item].astype(float))
         y = self.y[item]
         x = x.permute(2, 0, 1)  # C H W
 

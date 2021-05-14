@@ -26,7 +26,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class BasicDataset(Dataset):
     def __init__(self, img_file, labels, transform=None, train=True):
         super(BasicDataset, self).__init__()
-        self.x = img_file['x'][:].float()
+        self.x = img_file['x'][:].astype(float)
         self.y = torch.from_numpy(labels).long()
         self.length = self.y.shape[0]
         self.transform = transform
@@ -515,14 +515,14 @@ if __name__ == '__main__':
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=1600, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=800, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
 
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
-    parser.add_argument('--moco_k', default=16000, type=int, help='queue size; number of negative keys')
+    parser.add_argument('--moco_k', default=8000, type=int, help='queue size; number of negative keys')
     parser.add_argument('--moco_m', default=0.99, type=float, help='moco momentum of updating key encoder')
     parser.add_argument('--moco_t', default=0.07, type=float, help='softmax temperature')
     parser.add_argument('--aug_plus', default=True, type=bool, help='MoCo v2 aug_plus')

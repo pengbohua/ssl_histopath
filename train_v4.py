@@ -134,6 +134,7 @@ class ModelBase(nn.Module):
                         nn.ReLU(inplace=True),
                         nn.Linear(feature_dim, feature_dim))
                     )
+                    continue
 
             self.net.append(module)
 
@@ -514,14 +515,14 @@ if __name__ == '__main__':
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=800, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=400, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
 
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
-    parser.add_argument('--moco_k', default=8000, type=int, help='queue size; number of negative keys')
+    parser.add_argument('--moco_k', default=4000, type=int, help='queue size; number of negative keys')
     parser.add_argument('--moco_m', default=0.99, type=float, help='moco momentum of updating key encoder')
     parser.add_argument('--moco_t', default=0.07, type=float, help='softmax temperature')
     parser.add_argument('--aug_plus', default=True, type=bool, help='MoCo v2 aug_plus')
@@ -533,8 +534,8 @@ if __name__ == '__main__':
     parser.add_argument('--mlp', default=True, help='mlp head')
 
     # knn monitor
-    parser.add_argument('--mem_bank_size', default=90000, type=int, help='size for feature memory bank')
-    parser.add_argument('--knn_k', default=255, type=int, help='k in kNN monitor')
+    parser.add_argument('--mem_bank_size', default=10000, type=int, help='size for feature memory bank')
+    parser.add_argument('--knn_k', default=100, type=int, help='k in kNN monitor')
     parser.add_argument('--knn_t', default=0.1, type=float,
                         help='softmax temperature in kNN monitor; could be different with moco-t')
 
@@ -586,7 +587,7 @@ if __name__ == '__main__':
 
     negative_transform = nn.Sequential(
         transforms.CenterCrop((32, 32)),
-        transforms.RandomResizedCrop((32, 32), scale=(1.2, 2), ratio=(1, 1)),
+        transforms.RandomResizedCrop((32, 32), scale=(1.2, 2.), ratio=(1., 1.)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomVerticalFlip(p=0.5),
         transforms.RandomApply([
@@ -617,7 +618,7 @@ if __name__ == '__main__':
 
     valid_dst = BasicDataset(train_h5, train_labels, transform=test_transform, train=False)
     valid_dst = Subset(valid_dst, range(len(valid_dst)))
-    valid_loader = DataLoader(valid_dst, batch_size=args.batch_size, sampler=valid_sampler, shuffle=False,
+    valid_loader = DataLoader(valid_dst, batch_size=args.batch_size, shuffle=False,
                               num_workers=8, pin_memory=True, drop_last=True)
 
     test_dst = BasicDataset(test_h5, test_labels, test_transform, train=False)

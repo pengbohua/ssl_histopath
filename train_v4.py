@@ -341,7 +341,7 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
         for data, target in test_bar:
             data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
 
-            feature = net(data)
+            feature = net(data).squeeze()
             feature = F.normalize(feature, dim=1)
 
             pred_labels = knn_predict(feature, feature_bank, feature_labels, classes, args.knn_k, args.knn_t)

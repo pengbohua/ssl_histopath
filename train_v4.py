@@ -682,7 +682,8 @@ if __name__ == '__main__':
                    args.results_dir + '/triplet_path_v4.pth')
 
     print('-------------- Start Finetuning for 100 epochs (linear evaluation protocol) --------')
-    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:9], outdim=2)
+
+    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:9], outdim=2, linear_protocol=False)
     linear_eva_model = DDP(linear_eva_model, device_ids=[local_rank], output_device=local_rank)
 
     eva_optimizer = torch.optim.SGD(linear_eva_model.parameters(), lr=0.1, momentum=0.9)
@@ -693,6 +694,7 @@ if __name__ == '__main__':
     test_loss, test_top1_acc, test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False)
 
     print('-------------- Start Finetuning for 100 epochs (finetune everything) --------')
+
     finetune_model = ClassificationNetwork(model.module.encoder_k.net[:9], outdim=2, linear_protocol=False)
     finetune_model = DDP(finetune_model, device_ids=[local_rank], output_device=local_rank)
 
@@ -701,4 +703,4 @@ if __name__ == '__main__':
     f_loss, f_top1, _ = linear_finetune(100, linear_eva_model, valid_loader, finetune_optimizer, args, train=True)
     print('fully finetune', f_top1)
     f_test_loss, f_test_top1_acc, f_test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False,
-                                                                    logging='finetune')
+                                                                        logging='finetune')

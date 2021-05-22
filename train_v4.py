@@ -243,13 +243,12 @@ class ModelMoCo(nn.Module):
         logits = torch.cat([l_pos, l_neg_1, l_neg_2], dim=1)
 
         # apply temperature
-        # logits /= self.T
+        logits /= self.T
 
         # labels: positive key indicators
         labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
 
-        loss = LabelSmoothingCrossEntropy().cuda()(logits, labels)
-
+        loss = nn.CrossEntropyLoss().cuda()(logits, labels)
         return loss, q, k_p, k_n
 
     def forward(self, img_q, img_pos, img_neg):
@@ -341,7 +340,7 @@ def test(net, memory_data_loader, test_data_loader, epoch, args):
         for data, target in test_bar:
             data, target = data.cuda(non_blocking=True), target.cuda(non_blocking=True)
 
-            feature = net(data)
+            feature = net(data).squeeze()
             feature = F.normalize(feature, dim=1)
 
             pred_labels = knn_predict(feature, feature_bank, feature_labels, classes, args.knn_k, args.knn_t)
@@ -539,7 +538,7 @@ if __name__ == '__main__':
     # TODO Change path
     parser.add_argument('--resume', default='', type=str,
                         help='path to latest checkpoint (default: none)')
-    parser.add_argument('--results-dir', default='./results_v4/', type=str,
+    parser.add_argument('--results-dir', default='./result_no_smoothing/', type=str,
                         help='path to cache (default: none)')
 
     args = parser.parse_args()  # running in command line
@@ -679,7 +678,8 @@ if __name__ == '__main__':
                    args.results_dir + '/triplet_path_v4.pth')
 
     print('-------------- Start Finetuning for 100 epochs (linear evaluation protocol) --------')
-    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2, linear_protocol=True).cuda()
+
+    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:9], outdim=2, linear_protocol=False).cuda()
     linear_eva_model = DDP(linear_eva_model, device_ids=[local_rank], output_device=local_rank)
 
     eva_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
@@ -689,11 +689,14 @@ if __name__ == '__main__':
     test_loss, test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False, logging='linear_test')
 
     print('-------------- Start Finetuning for 100 epochs (finetune everything) --------')
-    finetune_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2, linear_protocol=False).cuda()
+
+
+    finetune_model = ClassificationNetwork(model.module.encoder_k.net[:9], outdim=2, linear_protocol=False).cuda()
     finetune_model = DDP(finetune_model, device_ids=[local_rank], output_device=local_rank)
 
     finetune_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    _, _ = linear_finetune(50, linear_eva_model, valid_loader, finetune_optimizer, args, train=True, logging='finetune_all_train')
+    f_loss, f_top1 = linear_finetune(50, linear_eva_model, valid_loader, finetune_optimizer, args, train=True, logging='finetune_all_train')
     f_test_loss, f_test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False,
                                                                     logging='finetune_all_test')
+

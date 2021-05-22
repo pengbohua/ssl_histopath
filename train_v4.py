@@ -679,12 +679,12 @@ if __name__ == '__main__':
                    args.results_dir + '/triplet_path_v4.pth')
 
     print('-------------- Start Finetuning for 100 epochs (linear evaluation protocol) --------')
-    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2).cuda()
+    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2, linear_protocol=True).cuda()
     linear_eva_model = DDP(linear_eva_model, device_ids=[local_rank], output_device=local_rank)
 
     eva_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    loss, top1_acc= linear_finetune(100, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
+    loss, top1_acc= linear_finetune(20, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
                                                logging='linear_eva')
     test_loss, test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False, logging='linear_test')
 
@@ -694,6 +694,6 @@ if __name__ == '__main__':
 
     finetune_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    _, _ = linear_finetune(100, linear_eva_model, valid_loader, finetune_optimizer, args, train=True, logging='finetune_all_train')
+    _, _ = linear_finetune(50, linear_eva_model, valid_loader, finetune_optimizer, args, train=True, logging='finetune_all_train')
     f_test_loss, f_test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False,
                                                                     logging='finetune_all_test')

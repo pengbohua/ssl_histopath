@@ -451,7 +451,7 @@ def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=T
     loss_criterion = LabelSmoothingCrossEntropy()
 
     total_loss, total_correct_1, total_correct_5, total_num = 0.0, 0.0, 0.0, 0
-    results = {'avg_loss': [], 'acc1': [], 'acc5': []}
+    results = {'avg_loss': [], 'acc1': []}
     for i in range(1, num_epochs + 1):
         if is_train:
             adjust_learning_rate(train_optimizer, i, args)
@@ -472,26 +472,22 @@ def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=T
 
                 total_num += img.shape[0]
                 total_loss += loss.item() * data_loader.batch_size
-                prediction = torch.argsort(prd_logits, dim=-1, descending=True)
                 total_correct_1 += torch.sum((prd_logits.argmax(dim=1) == target).float()).item()
-                total_correct_5 += torch.sum((prediction[:, 0:5] == target.unsqueeze(dim=-1)).any(dim=-1).float()).item()
 
             avg_loss = total_loss / total_num
             acc1 = total_correct_1 / total_num * 100
-            acc5 = total_correct_5 / total_num * 100
-            print('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% ACC@5: {:.2f}%'
+            print('{} Epoch: [{}/{}] Loss: {:.4f} ACC@1: {:.2f}% '
                   .format('Train' if is_train else 'Test', i, num_epochs, avg_loss,
-                          acc1, acc5))
+                          acc1))
             results['avg_loss'].append(avg_loss)
             results['acc1'].append(acc1)
-            results['acc5'].append(acc5)
 
         if logging is not None:
-            data_frame = pd.DataFrame(data=results, index=range(0, i + 1))
+            data_frame = pd.DataFrame(data=results)
             data_frame.to_csv(args.results_dir + '/{}.csv'.format(logging), index_label='epoch')
 
         torch.save(net.state_dict(), './linear_evaluation.pth')
-    return total_loss / total_num, total_correct_1 / total_num * 100, total_correct_5 / total_num * 100
+    return total_loss / total_num, total_correct_1 / total_num * 100
 
 
 if __name__ == '__main__':
@@ -675,7 +671,7 @@ if __name__ == '__main__':
             results['test_acc@1'].append(0)
 
         # save statistics
-        data_frame = pd.DataFrame(data=results, index=range(epoch_start, epoch + 1))
+        data_frame = pd.DataFrame(data=results)
         data_frame.to_csv(args.results_dir + '/log_moco_path_v4.csv', index_label='epoch')
 
         # save model
@@ -683,21 +679,21 @@ if __name__ == '__main__':
                    args.results_dir + '/triplet_path_v4.pth')
 
     print('-------------- Start Finetuning for 100 epochs (linear evaluation protocol) --------')
-    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2)
+    linear_eva_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2).cuda()
     linear_eva_model = DDP(linear_eva_model, device_ids=[local_rank], output_device=local_rank)
 
-    eva_optimizer = torch.optim.SGD(linear_eva_model.parameters(), lr=0.1, momentum=0.9)
+    eva_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    loss, top1_acc, top5_acc = linear_finetune(100, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
+    loss, top1_acc= linear_finetune(100, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
                                                logging='linear_eva')
-    test_loss, test_top1_acc, test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False)
+    test_loss, test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False, logging='linear_test')
 
     print('-------------- Start Finetuning for 100 epochs (finetune everything) --------')
-    finetune_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2, linear_protocol=False)
+    finetune_model = ClassificationNetwork(model.module.encoder_k.net[:8], outdim=2, linear_protocol=False).cuda()
     finetune_model = DDP(finetune_model, device_ids=[local_rank], output_device=local_rank)
 
-    finetune_optimizer = torch.optim.SGD(linear_eva_model.parameters(), lr=0.1, momentum=0.9)
+    finetune_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    _, _, _ = linear_finetune(100, linear_eva_model, valid_loader, finetune_optimizer, args, train=True)
-    f_test_loss, f_test_top1_acc, f_test_top5_acc = linear_finetune(1, linear_eva_model, test_loader, None, train=False,
-                                                                    logging='finetune')
+    _, _ = linear_finetune(100, linear_eva_model, valid_loader, finetune_optimizer, args, train=True, logging='finetune_all_train')
+    f_test_loss, f_test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False,
+                                                                    logging='finetune_all_test')

@@ -43,9 +43,11 @@ class BasicDataset(Dataset):
 
         if self.train:
             assert isinstance(self.transform, list), 'transforms must include positive and negative transforms'
-            transform_p = self.transform[0]
-            transform_n = self.transform[1]
-            img_q = transform_p(x)
+            transform_a = self.transform[0]
+            transform_p = self.transform[1]
+            transform_n = self.transform[2]
+
+            img_q = transform_a(x)
             img_p = transform_p(x)
             img_n = transform_n(x)
             return img_q, img_p, img_n
@@ -470,8 +472,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
-    parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[180, 260], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--schedule', default=[80], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
@@ -518,6 +520,11 @@ if __name__ == '__main__':
 
     local_size = torch.cuda.device_count()
 
+    anchor_transform = nn.Sequential(
+        transforms.CenterCrop((32, 32)),
+        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
+    )
+
     if args.aug_plus:
         train_transform = nn.Sequential(
             transforms.CenterCrop((32, 32)),
@@ -548,12 +555,6 @@ if __name__ == '__main__':
     negative_transform = nn.Sequential(
         transforms.CenterCrop((32, 32)),
         transforms.RandomResizedCrop((32, 32), scale=(1.2, 2.), ratio=(1., 1.)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomApply([
-            transforms.RandomRotation([0, 90]),
-            # transforms.ColorJitter(0.2, contrast=(0.8, 1.0), saturation=(1.0, 1.0), hue=(0.0, 0.0))
-        ], p=0.5),
         # transforms.RandomGrayscale(p=0.2),
         # transforms.RandomApply([GaussianBlur([.1, 2.])]),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
@@ -571,7 +572,7 @@ if __name__ == '__main__':
     train_labels = train_meta.loc[:, ['center_tumor_patch']].to_numpy()
     test_labels = test_meta.loc[:, ['center_tumor_patch']].to_numpy()
 
-    train_dst = BasicDataset(train_h5, train_labels, transform=[train_transform, negative_transform], train=True)
+    train_dst = BasicDataset(train_h5, train_labels, transform=[anchor_transform, train_transform, negative_transform], train=True)
     train_sampler = DistributedSampler(train_dst)
     train_loader = DataLoader(train_dst, batch_size=args.batch_size, sampler=train_sampler,
                               shuffle=(train_sampler is None), num_workers=8, pin_memory=True, drop_last=True)

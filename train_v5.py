@@ -571,23 +571,23 @@ if __name__ == '__main__':
 
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
-    parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[80], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--epochs', default=200, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--schedule', default=[120, 160], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
-    parser.add_argument('--batch_size', default=400, type=int, metavar='N', help='batch size per gpu')
+    parser.add_argument('--batch_size', default=500, type=int, metavar='N', help='batch size per gpu')
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
 
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
-    parser.add_argument('--moco_k', default=4000, type=int, help='queue size; number of negative keys')
+    parser.add_argument('--moco_k', default=10000, type=int, help='queue size; number of negative keys')
     parser.add_argument('--moco_m', default=0.99, type=float, help='moco momentum of updating key encoder')
     parser.add_argument('--moco_t', default=0.07, type=float, help='softmax temperature')
     parser.add_argument('--aug_plus', default=True, type=bool, help='MoCo v2 aug_plus')
-    parser.add_argument('--bn_splits', default=4, type=int,
+    parser.add_argument('--bn_splits', default=1, type=int,
                         help='simulate multi-gpu behavior of BatchNorm in one gpu; 1 is SyncBatchNorm in multi-gpu')
     parser.add_argument('--num-classes', default=2, type=int)
     parser.add_argument('--symmetric', default=True,
@@ -748,7 +748,7 @@ if __name__ == '__main__':
 
     eva_optimizer = torch.optim.Adam(linear_eva_model.parameters(), lr=0.1, weight_decay=args.wd)
 
-    loss, top1_acc = linear_finetune(20, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
+    loss, top1_acc = linear_finetune(50, linear_eva_model, valid_loader, eva_optimizer, args, train=True,
                                                logging='linear_eva')
     test_loss, test_top1_acc = linear_finetune(1, linear_eva_model, test_loader, None, args, train=False, logging='linear_test')
 

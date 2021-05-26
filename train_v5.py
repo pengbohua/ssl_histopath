@@ -447,6 +447,66 @@ class LabelSmoothingCrossEntropy(nn.Module):
         return loss.mean()
 
 
+from skimage.exposure import rescale_intensity
+from skimage.filters import gaussian
+import cv2
+from scipy.ndimage.interpolation import map_coordinates
+import numpy as np
+import torch
+
+
+def elastic_transform(image, severity=4):
+    img_shape = image.shape[0]
+    c = [(img_shape * 0.5, img_shape * 0.3, 0),
+         (img_shape * 1, img_shape * 0.10, 5),
+         (img_shape * 2, img_shape * 0.08, 10),
+         (img_shape * 2, img_shape * 0.07, 20),
+         (img_shape * 5, img_shape * 0.06, 20),
+         ][severity]
+
+    image = np.array(image, dtype=np.float32) / 255.
+    shape = image.shape
+    shape_size = shape[:2]
+
+    # random affine
+    center_square = np.float32(shape_size) // 2
+    square_size = min(shape_size) // 3
+    pts1 = np.float32([center_square + square_size,
+                       [center_square[0] + square_size, center_square[1] - square_size],
+                       center_square - square_size])
+    pts2 = pts1 + np.random.uniform(-c[2], c[2], size=pts1.shape).astype(np.float32)
+    M = cv2.getAffineTransform(pts1, pts2)
+    image = cv2.warpAffine(image, M, shape_size[::-1], borderMode=cv2.BORDER_REFLECT_101)
+
+    dx = (gaussian(np.random.uniform(-1, 1, size=shape[:2]),
+                   c[1], mode='reflect', truncate=3) * c[0]).astype(np.float32)
+    dy = (gaussian(np.random.uniform(-1, 1, size=shape[:2]),
+                   c[1], mode='reflect', truncate=3) * c[0]).astype(np.float32)
+    dx, dy = dx[..., np.newaxis], dy[..., np.newaxis]
+
+    x, y, z = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]), np.arange(shape[2]))
+    indices = np.reshape(y + dy, (-1, 1)), np.reshape(x + dx, (-1, 1)), np.reshape(z, (-1, 1))
+    return rescale_intensity(map_coordinates(image, indices, order=1, mode='reflect').reshape(shape), out_range=(0, 255)).astype(np.uint8)
+
+
+class ElasticDistortion(torch.nn.Module):
+    """
+    ElasticDistortion for images.
+
+    Args:
+        severity: change severity from 0 to 4
+    """
+    def __init__(self, severity=0):
+        super(ElasticDistortion, self).__init__()
+        self.severity = severity
+
+    def forward(self, img):
+        return elastic_transform(img)
+
+    def __repr__(self):
+        return self.__class__.__name__ +'severity={}'.format(self.severity)
+
+
 def linear_finetune(num_epochs, net, data_loader, train_optimizer, args, train=True, linear_temperature=0.1, logging=None):
     is_train = train
     net.eval()
@@ -539,7 +599,6 @@ if __name__ == '__main__':
                         help='softmax temperature in kNN monitor; could be different with moco-t')
 
     # utils
-    # TODO Change path
     parser.add_argument('--resume', default='', type=str,
                         help='path to latest checkpoint (default: none)')
     parser.add_argument('--results-dir', default='./result_no_smoothing/', type=str,
@@ -558,7 +617,8 @@ if __name__ == '__main__':
     local_size = torch.cuda.device_count()
 
     if args.aug_plus:
-        train_transform = nn.Sequential(
+        train_transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.CenterCrop((32, 32)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
@@ -569,9 +629,10 @@ if __name__ == '__main__':
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
             transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
-        )
+        ])
     else:
-        train_transform = nn.Sequential(
+        train_transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.CenterCrop((32, 32)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomVerticalFlip(p=0.5),
@@ -582,25 +643,21 @@ if __name__ == '__main__':
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
             transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
-        )
+        ])
 
-    negative_transform = nn.Sequential(
+    negative_transform = transforms.Compose([
+        ElasticDistortion(severity=3),
+        transforms.ToPILImage(),
         transforms.CenterCrop((32, 32)),
-        transforms.RandomResizedCrop((32, 32), scale=(1.2, 2.), ratio=(1., 1.)),
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
-        transforms.RandomApply([
-            transforms.RandomRotation([0, 90]),
-            # transforms.ColorJitter(0.2, contrast=(0.8, 1.0), saturation=(1.0, 1.0), hue=(0.0, 0.0))
-        ], p=0.5),
-        # transforms.RandomGrayscale(p=0.2),
-        # transforms.RandomApply([GaussianBlur([.1, 2.])]),
+        # transforms.RandomResizedCrop((32, 32), scale=(1.2, 2.), ratio=(1., 1.)),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
-    )
+        ])
 
-    test_transform = nn.Sequential(
+    test_transform = transforms.Compose([
+        transforms.ToPILImage(),
         transforms.CenterCrop((32, 32)),
-        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638)))
+        transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
+    ])
 
     train_h5 = h5py.File(train_dir, 'r')
     test_h5 = h5py.File(test_dir, 'r')

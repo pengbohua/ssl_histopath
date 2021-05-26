@@ -247,12 +247,12 @@ class ModelMoCo(nn.Module):
         logits = torch.cat([l_pos, l_neg_1, l_neg_2], dim=1)
 
         # apply temperature
-        logits /= self.T
+        # logits /= self.T
 
         # labels: positive key indicators
         labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
 
-        loss = nn.CrossEntropyLoss().cuda()(logits, labels)
+        loss = LabelSmoothingCrossEntropy().cuda()(logits, labels)
         return loss, q, k_p, k_n
 
     def forward(self, img_q, img_pos, img_neg):

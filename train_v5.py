@@ -571,8 +571,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, metavar='LR', help='initial learning rate',
                         dest='lr')
-    parser.add_argument('--epochs', default=300, type=int, metavar='N', help='number of total epochs to run')
-    parser.add_argument('--schedule', default=[180, 260], nargs='*', type=int, help='mile stones for fix lr decay')
+    parser.add_argument('--epochs', default=100, type=int, metavar='N', help='number of total epochs to run')
+    parser.add_argument('--schedule', default=[80], nargs='*', type=int, help='mile stones for fix lr decay')
     parser.add_argument('--cos', default=False, help='use cosine lr schedule')
     parser.add_argument('--warmup_epochs', default=5, help='warm up for cosine schedule')
 
@@ -609,9 +609,6 @@ if __name__ == '__main__':
     args = parser.parse_args()  # running in command line
     # get local_rank externally
     local_rank = args.local_rank
-
-    args.cos = True
-    args.symmetric = False
 
     torch.cuda.set_device(local_rank)
     dist.init_process_group(backend='nccl', init_method='env://')

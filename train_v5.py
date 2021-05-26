@@ -628,6 +628,7 @@ if __name__ == '__main__':
             ], p=0.5),
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
+            transforms.ToTensor(),
             transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
         ])
     else:
@@ -642,6 +643,7 @@ if __name__ == '__main__':
             ], p=0.5),
             # transforms.RandomGrayscale(p=0.2),
             # transforms.RandomApply([GaussianBlur([.1, 2.])]),
+            transforms.ToTensor(),
             transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
         ])
 
@@ -650,6 +652,7 @@ if __name__ == '__main__':
         transforms.ToPILImage(),
         transforms.CenterCrop((32, 32)),
         # transforms.RandomResizedCrop((32, 32), scale=(1.2, 2.), ratio=(1., 1.)),
+        transforms.ToTensor(),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
         ])
 

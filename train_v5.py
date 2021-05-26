@@ -255,7 +255,7 @@ class ModelMoCo(nn.Module):
         loss = LabelSmoothingCrossEntropy().cuda()(logits, labels)
         return loss, q, k_p, k_n
 
-    def forward(self, img_q, img_pos, img_neg):
+    def forward(self, img_query, img_positive, img_negative):
         """
         Input:
             im_q: a batch of query images
@@ -270,12 +270,12 @@ class ModelMoCo(nn.Module):
 
         # compute loss
         if self.symmetric:  # asymmetric loss
-            loss_12, q1, k_p_2, k_n_2 = self.contrastive_loss(img_q, [img_pos, img_neg])
-            loss_21, q2, k_p_1, k_n_1 = self.contrastive_loss(img_pos, [img_q, img_neg])
+            loss_12, q1, k_p_2, k_n_2 = self.contrastive_loss(img_query, [img_positive, img_negative])
+            loss_21, q2, k_p_1, k_n_1 = self.contrastive_loss(img_positive, [img_query, img_negative])
             loss = loss_12 + loss_21
             k_n = torch.cat([k_n_1, k_n_2], dim=0)
         else:  # asymmetric loss
-            loss, q, k_p, k_n = self.contrastive_loss(img_q, [img_pos, img_neg])
+            loss, q, k_p, k_n = self.contrastive_loss(img_query, [img_positive, img_negative])
 
         self._dequeue_and_enqueue(k_n)
 

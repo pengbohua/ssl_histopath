@@ -659,6 +659,7 @@ if __name__ == '__main__':
     test_transform = transforms.Compose([
         transforms.ToPILImage(),
         transforms.CenterCrop((32, 32)),
+        transforms.ToTensor(),
         transforms.Normalize((178.7028, 136.7650, 176.1714), (59.4574, 70.1370, 53.8638))
     ])
 

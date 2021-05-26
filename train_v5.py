@@ -42,9 +42,8 @@ class BasicDataset(Dataset):
 
     def __getitem__(self, item):
 
-        x = torch.from_numpy(self.x[item]).float()
+        x = self.x[item]
         y = self.y[item]
-        x = x.permute(2, 0, 1)  # C H W
 
         if self.train:
             assert isinstance(self.transform, list), 'transforms must include positive and negative transforms'

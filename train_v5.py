@@ -580,7 +580,7 @@ if __name__ == '__main__':
     parser.add_argument('--wd', default=5e-4, type=float, metavar='W', help='weight decay')
     parser.add_argument('--local_rank', default=0, type=int, help='master rank for ddp')
     parser.add_argument('--enable_parallel', default=True, type=bool, help='enable ddp')
-
+    parser.add_argument('--severity', default=True, type=int, help='severity of elastic distortion chosen from [0,1,2,3,4]')
     # moco specific configs:
     parser.add_argument('--moco_dim', default=128, type=int, help='feature dimension')
     parser.add_argument('--moco_k', default=10000, type=int, help='queue size; number of negative keys')
@@ -726,12 +726,9 @@ if __name__ == '__main__':
     for epoch in range(epoch_start, args.epochs + 1):
         train_loss = train(model, train_loader, optimizer, epoch, args)
         results['train_loss'].append(train_loss)
-        if epoch % 5 == 0:
-            feature_extractor = nn.Sequential(*model.module.encoder_q.net[:8])
-            test_acc_1 = test(feature_extractor, valid_loader, test_loader, epoch, args)
-            results['test_acc@1'].append(test_acc_1)
-        else:
-            results['test_acc@1'].append(0)
+        feature_extractor = nn.Sequential(*model.module.encoder_q.net[:8])
+        test_acc_1 = test(feature_extractor, valid_loader, test_loader, epoch, args)
+        results['test_acc@1'].append(test_acc_1)
 
         # save statistics
         data_frame = pd.DataFrame(data=results)
